@@ -1,8 +1,8 @@
 ### workspace init
 # read data
-#power<-read.csv("household_power_consumption.txt",sep = ";",na.strings = "?",header = T)
+power<-read.csv("household_power_consumption.txt",sep = ";",na.strings = "?",header = T)
 #subset relevant data
-#data<-subset(as.data.frame(power),Date=="1/2/2007"|Date=="2/2/2007")
+data<-subset(as.data.frame(power),Date=="1/2/2007"|Date=="2/2/2007")
 # create a timeline, time and date combined
 timeline<-with(data,as.POSIXct(strptime(paste(Date,Time),"%d/%m/%Y %H:%M:%S")))
 
