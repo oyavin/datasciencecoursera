@@ -1,2 +1,2 @@
-*.txt
-!avrgTidyData.txt
+/GetnClean Data - Project/Course Project/UCI HAR Dataset
+/Exploratory Data Analysis/Project 1/household_power_consumption.txt
