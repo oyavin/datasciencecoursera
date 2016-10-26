@@ -1,6 +1,6 @@
-####Codebook
-# for 'Exploratory Data Analysis' project #2
-# by Omer Yavin
+#Codebook
+### for 'Exploratory Data Analysis' project #2
+### by Omer Yavin
 Following is a description of the data used, the outcome, and the manipulation implemented in between.
 
 ##Data overview
@@ -10,19 +10,19 @@ The specific data I wored with here holds data for **1999, 2002, 2005, and 2008*
 More information can be found in the README file or at the **EPA National Emissions Inventory web site**.
 
 ##Files overview
-**summarySCC_PM25.rds:** Holds the emission values table.
-**Source_Classification_Code.rds:** Holds the classification codes "dicitionary".
+* **summarySCC_PM25.rds:** Holds the emission values table.
+* **Source_Classification_Code.rds:** Holds the classification codes "dicitionary".
 
 ##Files used or created during the run
 **plot[1-6].R:** each holds the code to creat the graph with the correlating number according the the order of the questions as specified in the README file.
 
 ##Outcome
-**plot1** - Total PM2.5 Emission Measured in the US Per Year
-**plot2** - PM2.5 Emission Measured in Baltimore Per Year
-**plot3** - PM2.5 Emission Measured in Baltimore Per Year, by type
-**plot4** - Total Coal-Combustion-Related PM2.5 Emission Measured in the US Per Year
-**plot5** - Motor Vehicle Related PM2.5 Emission Measured in Baltimore Per Year
-**plot6** - Motor Vehicle Related PM2.5 Emission Measured in LA vs. Baltimore Per Year
+* **plot1** - Total PM2.5 Emission Measured in the US Per Year
+* **plot2** - PM2.5 Emission Measured in Baltimore Per Year
+* **plot3** - PM2.5 Emission Measured in Baltimore Per Year, by type
+* **plot4** - Total Coal-Combustion-Related PM2.5 Emission Measured in the US Per Year
+* **plot5** - Motor Vehicle Related PM2.5 Emission Measured in Baltimore Per Year
+* **plot6** - Motor Vehicle Related PM2.5 Emission Measured in LA vs. Baltimore Per Year
 
 ##Data cleaning\tidying process
 Each code reads the data from the files, subsets the relevant data and utilizes ddply to calculate the sum of emissions across certain factors (mostly per year).
