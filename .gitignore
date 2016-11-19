@@ -2,3 +2,4 @@
 /Exploratory Data Analysis/Project 1/household_power_consumption.txt
 *.zip
 /Reproducible Research/Final Project/repdata%2Fdata%2FStormData.*
+/Reproducible Research/Final Project/FinalProject_cache/*
