@@ -1,5 +1,5 @@
 ## Introduction
-__Originaly forked from rdpeng/RepData_PeerAssessment1 (https://github.com/rdpeng/RepData_PeerAssessment1)__ 
+__Originaly forked from [rdpeng/RepData_PeerAssessment1] (https://github.com/rdpeng/RepData_PeerAssessment1)__ 
 
 It is now possible to collect a large amount of data about personal
 movement using activity monitoring devices such as a
