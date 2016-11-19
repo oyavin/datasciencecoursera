@@ -1,0 +1,169 @@
+---
+title: "An analysis of storm data"
+author: "Omer"
+date: "November 8, 2016"
+output: html_document
+---
+
+```{r setup, include=F}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# An analysis of strorm data
+__Synopsis__: Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database.Essentialy, we will try to answer two questions:    
+1. Across the United States, which types of events are most harmful with respect to population health?     
+2. Across the United States, which types of events have the greatest economic consequences?
+
+```{r load_libraries, message=F, warning=F}
+# upload needed libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+## Data overview:
+The database (NOAA storm database) tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage. More information may be found here: <https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf>
+
+Loading and scanning the database:
+```{r load_data, cache=T}
+# check if the data file exists, if not download it
+fileURL='https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2'
+zipFile='repdata%2Fdata%2FStormData.csv.bz2'
+dataFile='repdata%2Fdata%2FStormData.csv'
+if (!file.exists(dataFile)){
+       if (!file.exists(zipFile)){
+               setInternet2(T)
+               download.file(fileURL,zipFile,method='auto')
+       }
+        zip.unpack(zipFile,dataFile)
+}
+data<-read.csv(dataFile)
+# dimensions of the data
+dim(data)
+# get a sense of how the data is structured
+str(data)
+```
+
+At this point it's important to notice that for economic related damages the value is devided to a number ('...DMG' tag, containing a numeric value) and a magnitude ('...DMGEXP' tag, containig an ebbreviation for hundred, thousand, million or billion). 
+To understand this further the tags need to be further observed:
+To do that we first need to understand the '...DMGEXP' rows:
+```{r observe_data}
+summary(data$PROPDMGEXP)
+summary(data$CROPDMGEXP)
+```
+
+The alphabetical character tags (m,M,h,k etc.) are clear enough. It can be assumed that the numeric tags reffer to the power of 10, but the other tags are unclear. Let's check the percentage of these tags:
+```{r percent_missing_values, cache=T}
+magValues<-c('h','H','k','K','m','M','b','B','','0','1','2','3','4','5','6','7','8')
+# for property
+mean(!(data$PROPDMGEXP %in% magValues))*100
+# for crop
+mean(!(data$PROPDMGEXP %in% magValues))*100
+```
+
+Both less than a hundredth of a percent so we'll just ignore these values (refer to them as zeros).
+
+## Data processing
+__Obtain real values of economic damage__    
+Switch the magnitude tags with numeric values of magnitude (power of ten):
+```{r define_magnitude, cache=T}
+# for property
+levels(data$PROPDMGEXP)<-c(levels(data$PROPDMGEXP),'9')
+data$PROPDMGEXP[!(data$PROPDMGEXP%in%magValues)||(data$PROPDMGEXP=='')]<-'0'
+data$PROPDMGEXP[data$PROPDMGEXP%in%c('h','H')]<-'2'
+data$PROPDMGEXP[data$PROPDMGEXP%in%c('k','K')]<-'3'
+data$PROPDMGEXP[data$PROPDMGEXP%in%c('m','M')]<-'6'
+data$PROPDMGEXP[data$PROPDMGEXP%in%c('b','B')]<-'9'
+# for crop
+levels(data$CROPDMGEXP)<-c(levels(data$CROPDMGEXP),'3','6','9')
+data$CROPDMGEXP[!(data$CROPDMGEXP%in%magValues)||(data$CROPDMGEXP=='')]<-'0'
+data$CROPDMGEXP[data$CROPDMGEXP%in%c('h','H')]<-'2'
+data$CROPDMGEXP[data$CROPDMGEXP%in%c('k','K')]<-'3'
+data$CROPDMGEXP[data$CROPDMGEXP%in%c('m','M')]<-'6'
+data$CROPDMGEXP[data$CROPDMGEXP%in%c('b','B')]<-'9'
+```
+
+Replace the numeric values with actual sums:
+```{r real_sums, cache=T}
+data$PROPDMG<-with(data,PROPDMG*10^as.numeric(PROPDMGEXP))
+data$CROPDMG<-with(data,PROPDMG*10^as.numeric(CROPDMGEXP))
+```
+
+Summarize the interesting variables by groups of event types:
+```{r summarise_data, cache=T}
+sumByEVTYPE<-data %>% group_by(EVTYPE) %>% summarise_each(funs(sum),CROPDMG,PROPDMG,INJURIES,FATALITIES)
+```
+
+Add columns to summarize the 'cost' of events, economicaly and health-wise, for ordering purposes:
+```{r add_totals, cache=T}
+sumByEVTYPE$HEALTH<-sumByEVTYPE$FATALITIES+sumByEVTYPE$INJURIES
+sumByEVTYPE$ECONOMIC<-sumByEVTYPE$CROPDMG+sumByEVTYPE$PROPDMG
+
+```
+
+Combining some overlapping data[^1]:
+```{r combine_overlaping_events, cache=T}
+# combine leading thunderstorm tags
+sumByEVTYPE[sumByEVTYPE$EVTYPE=='THUNDERSTORM WIND',-1]=
+        sumByEVTYPE[sumByEVTYPE$EVTYPE=='THUNDERSTORM WIND',-1]+
+        sumByEVTYPE[sumByEVTYPE$EVTYPE=='THUNDERSTORM WINDS',-1]+
+        sumByEVTYPE[sumByEVTYPE$EVTYPE=='TSTM WIND',-1]
+# 'delete' old values
+sumByEVTYPE[sumByEVTYPE$EVTYPE=='THUNDERSTORM WINDS',-1]=0
+sumByEVTYPE[sumByEVTYPE$EVTYPE=='TSTM WIND',-1]=0
+# combine leading heat tags
+sumByEVTYPE[sumByEVTYPE$EVTYPE=='EXCESSIVE HEAT',-1]=
+        sumByEVTYPE[sumByEVTYPE$EVTYPE=='EXCESSIVE HEAT',-1]+
+        sumByEVTYPE[sumByEVTYPE$EVTYPE=='HEAT',-1]
+# 'delete' old values
+sumByEVTYPE[sumByEVTYPE$EVTYPE=='HEAT',-1]=0
+```
+
+Observe the data structure obtained:
+```{r observe_processed_data}
+summary(sumByEVTYPE)
+```
+
+## Results    
+### __Q1:__ Across the United States, which types of events are most harmful with respect to population health? 
+```{r q1}
+# find top ten most harmful to health events
+toptenHealth<-head(sumByEVTYPE[order(sumByEVTYPE$HEALTH,decreasing=T),],10)
+# melt to ease ploting with detail
+toptenHealth<-gather(toptenHealth,var,val,c(INJURIES,FATALITIES))
+# plot
+g1<-ggplot(toptenHealth, aes(x = reorder(EVTYPE, HEALTH), y = val/1000, fill=var))+
+        geom_bar(stat = 'identity')+coord_flip()+
+        xlab('Event type')+ylab('Sum of fatalities and injuries by thousands')+
+        ggtitle("Top 10 Harmful Events With Respect To Population Health")
+print(g1)
+```
+
+
+### __Q2:__ Across the United States, which types of events have the greatest economic consequences?
+```{r q2}
+# find top ten most harmful to health events
+toptenEconomic<-head(sumByEVTYPE[order(sumByEVTYPE$ECONOMIC,decreasing=T),],10)
+# melt to ease ploting with detail
+toptenEconomic<-gather(toptenEconomic,var,val,c(CROPDMG,PROPDMG))
+# plot
+g2<-ggplot(toptenEconomic, aes(x = reorder(EVTYPE, ECONOMIC), y = val/(10^12), fill=var))+
+        geom_bar(stat = 'identity')+coord_flip()+
+        xlab('Event type')+ylab('Sum of economic consequences by trillion dollars')+
+        ggtitle("Top 10 Harmful Events With Respect To Economic Consequences")
+print(g2)
+```
+
+#### Conclusions:    
+1. It seems that of the events polled, winds in general are the greatest causes for loss, both economic, in casualties and in respect to health with tornadoes leading both charts and thunderstorm winds dominating the higher places.    
+2. The cost of damages in property, from the leading events polled, seem to make an almost insignifact part of the losses. Almost the whole cost of all leading events can be attributed to damage to crops.
+
+#### Footnotes:
+[^1]:I noticed durring the process that some events appear more than once under different names. This is easily observed here:
+    ```{r show_overlaping_events}
+sumByEVTYPE$EVTYPE
+```
+
+     To not divert too much from the scope of the exercise and since some overlaps were not certain, I decided to combine only the ones that appeared in the original top ten of each category.
