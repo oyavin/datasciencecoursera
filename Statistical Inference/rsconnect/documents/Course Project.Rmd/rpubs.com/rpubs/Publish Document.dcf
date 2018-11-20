@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/365997/80e6c918c5e74c249e968a4de0e270c7
+bundleId: https://api.rpubs.com/api/v1/document/365997/80e6c918c5e74c249e968a4de0e270c7
+url: http://rpubs.com/Omer/365997/edit
+when: 1520071583.95277

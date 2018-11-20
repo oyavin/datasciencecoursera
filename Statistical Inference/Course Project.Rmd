@@ -1,0 +1,298 @@
+---
+title: "Statistical Inference Course Project Pt.1"
+author: "Omer Yavin"
+date: "March 2, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(4)
+library(ggplot2)
+library(reshape2)
+```
+
+
+##Simulation exercise
+
+In this part of the project we will investigate the exponential distribution in R and compare it with the Central Limit Theorem.
+The mean of exponential distribution is 1/\lambda and the standard deviation is also 1/\lambda. We will set \lambda = 0.2.
+We will investigate the distribution of averages of 40 exponentials.
+
+This will be done in 3 stages:
+
+1. Show the sample mean and compare it to the theoretical mean of the distribution.
+
+2. Show how variable the sample is (via variance) and compare it to the theoretical variance of the distribution.
+
+3. Show that the distribution is approximately normal.
+
+
+__Part 1: Sample Mean versus Theoretical Mean__
+
+To get a sample mean, 1000 iterations (as instructed) of 40 exponential distribution* 'experiments' each will be performed. For each experiment the mean will be calculated, then a histogram created of the agregate results.
+
+First, to get a general feel, one sample mean (of 40 'experiments') will be calculated, and compared to theory:
+
+```{r one_sample_mean, results='markup'}
+sample_sz = 40
+#Sample mean
+mean(rexp(sample_sz,0.2))
+#Theoretical mean
+theoretical_mean=1/0.2
+```
+
+
+One sample mean can be either close or far from the theoretical mean, but now the behavior of the mean of many iterations of the same simulation can be tested:
+
+```{r histogram}
+iters = 1000
+lambda = 0.2
+esm = NULL
+for (i in 1 : iters) esm = c(esm, mean(rexp(sample_sz,lambda)))
+sample_mn = mean(esm)
+hist(esm, xlab = "Value of sample averages", main = expression(paste("Histogram of exponential distribution means, where ", lambda, " = 0.2")))
+abline(v=sample_mn,col="red",lty=2)
+abline(v=1/lambda,col="blue",lty=1)
+legend(6,230,legend = c("Sample mean","Theoretical mean"),col = c("red","blue"),lty=c(2,1))
+sample_mn
+```
+
+Visually one can see the sample mean is very close to the theoretical mean, also the number itself is close to 5. But how close really? The Student's t-test can be used to try and test the hypothesis of the theoretical mean ($H_0: \mu=5$):
+
+```{r t_test}
+t.test(esm,mu=1/lambda)
+```
+
+Zero (and the aqcuired sample mean) is well within the 95% confidence range. Also p-value is around 0.33, which means even if \alpha is allowed to go up to 0.3, the null hypothesis (\mu=5) would still not be rejected.
+
+
+__Part 2: Sample Variance versus Theoretical Variance__
+
+The same sample of a thousand itterations of means of 40 'experiments' of exponential distributions will be used here, this time to compare the sample variance to the theoretical variance.
+
+The theoretical variance for an exponential distribution is $\sigma^2=\frac1{\lambda^2}$, hence:
+
+```{r sample_variance}
+#Theoretical variance
+1/lambda^2
+#Sample variance
+var(esm)
+```
+
+It seems as though the variances are very far appart, but in reality the sample variance we are calaulating is not variance of the mean of 40 samples at a time, not of the samples themselves.
+The theoretical variance of the sample mean shrinks in relation to the sample size (N) ($\sigma^2_{\bar{X}}=\frac{\sigma^2}N$), hence:
+
+```{r sample_mean_variance}
+#Theoretical mean variance
+1/(sample_sz*lambda^2)
+```
+
+It is clear that the sample variance calculated earlier is actually very close to this result.
+
+
+__Part 3: Distribution__
+
+It is visible in the histogram itself that the distribution is bell shaped, as a normal distribution.
+To make this even more visible, an actual normal distribution (with the same mean and variance we've calculated) can be simulated and plotted on top of the obtained histogram.
+
+The histogram slots will be made denser here to try and create a more continous histogram plot.
+
+```{r normal_distribution}
+h<-hist(esm,breaks = 60, xlab = "Value of sample averages", main = expression(paste("Histogram of exponential distribution means, where ", lambda, " = 0.2")))
+x<-seq(2,8,length = 1000)
+norm_fit<-dnorm(x,mean=sample_mn,sd=sd(esm))
+norm_fit<-norm_fit*diff(h$mids[1:2])*length(x)
+lines(x,norm_fit,col = "blue",lty=1)
+legend(6,230,legend = "Normal distribution",col = "blue",lty=1)
+
+```
+
+With the 'theoretical plot' on top of the histogram it is visible just how similar the distribution is, in shape, to a normal distribution. It can be concluded that they are quite similar.
+
+(*) - While each experiment is random, the seed was set to a constant (4) for reproducible reasults, and the ability to comment on the nature of the results.
+
+##Basic inferential data analysis
+
+In this part the focus will be on analyzing actual data found in the R database. Namely - ToothGrowth dataset.
+From the description of the database:
+
+*The response is the length of odontoblasts (cells responsible for tooth growth) in 60 guinea pigs. Each animal received one of three dose levels of vitamin C (0.5, 1, and 2 mg/day) by one of two delivery methods, (orange juice or ascorbic acid (a form of vitamin C and coded as VC).*
+
+
+The following code loads the dataset and uses some known 'tricks' to review how it is built and how it behaves.
+
+```{r dataset_review}
+tg_data<-ToothGrowth
+
+#Dataset dimentions
+dim(tg_data)
+#First few lines
+head(tg_data)
+#General review of the data
+summary(tg_data)
+```
+
+All this allows some questions to be raised regarding the data at hand.
+
+
+__Questions__
+
+1. How does vitamin C dosages affect tooth growth?
+
+2. Does the method of delivery of vitamin C affect tooth growth?
+
+3. Does supplement type affect the answer to Q1? Does dose level affect the answer to Q2?
+
+There are probably more questions that can be asked. The following analysis will focus on these questions and try to give some answers.
+
+In order to believe in the ability to answer these questions with the data provided, some assumptions are made. These will be discussed in the end.
+
+
+__Dosage__
+
+A boxplot type graph can visualize the effect of vitamin C dosage on tooth growth.
+
+```{r dosage_boxplot}
+#Convert dose to factor
+#Plot len vs dose
+p<-ggplot(data=tg_data,aes(x=factor(dose),y=len))
+p+geom_boxplot()
+```
+
+An upwards trend is clearly visible here, with the increase of vitamin C dosage.
+This will be further examined by setting two seperate null hypotheses and testing them each against their respective alternative hypotheses.
+
+Some definitions to start:
+
+- $\mu_{0.5}$ - the mean length of odontoblasts for a dose of 0.5 miligrams/day of vitamin C.
+
+- $\mu_{1.0}$ - the mean length of odontoblasts for a dose of 1.0 miligrams/day of vitamin C.
+
+- $\mu_{2.0}$ - the mean length of odontoblasts for a dose of 2.0 miligrams/day of vitamin C.
+
+The null hypotheses:
+
+1. $H_{0_1}: \mu_{1.0}\le\mu_{0.5}$
+
+2. $H_{0_2}: \mu_{1.0}\ge\mu_{2.0}$
+
+The respective alternative hypotheses defined below.
+
+1. $H_{1_1}: \mu_{1.0}>\mu_{0.5}$
+
+2. $H_{1_2}: \mu_{1.0}<\mu_{2.0}$
+
+
+Tests will utilize the one sided t-test.
+
+Test 1:
+```{r test_dose_1, echo=FALSE}
+t.test(c(tg_data$len[tg_data$dose==1.0]),c(tg_data$len[tg_data$dose==0.5]),alternative = "greater", paired = FALSE)
+```
+
+Test 2:
+```{r test_dose_2, echo=FALSE}
+t.test(c(tg_data$len[tg_data$dose==1.0]),c(tg_data$len[tg_data$dose==2.0]),alternative = "less", paired = FALSE)
+```
+
+In both cases the null hypothesis is rejected. This means there is enough evidence to believe with at least 95% certainty that $\mu_{1.0}>\mu_{0.5}$ and that $\mu_{1.0}<\mu_{2.0}$.
+Combined together there is a clear and proven  upwards trend in odontoblast length with the increase** of vitamin C dosage.
+
+
+__Method of delivery__
+
+Now the general affect of just the type of supplement the vitamin C was delivered by will be examined.
+
+First it's important to show that tests are even, meaning - each supplement type was tested equal number of times for each dosage. Otherwise results could be skewed.
+
+We could count, but we're far too suffisticated (and lazy) for that... :)
+
+```{r equal_measurment}
+tg_temp<-tg_data
+tg_temp$ones <- rep(1,nrow(tg_temp)) 
+dcast(tg_temp,supp~dose,value.var = "ones",fun.aggregate = sum)
+```
+
+Indeed each supplement type (OJ/VC) was tested for each level of dosage an equal number of 10 times.
+Now for the question...
+
+Does the supplement type affect the level of tooth growth for any dosage of vitamin C?
+
+```{r supplement_boxplot}
+p<-ggplot(data=tg_data,aes(x=factor(supp),y=len))
+p+geom_boxplot()
+```
+
+Odontoblast length is slightly bigger for OJ when compared to acorbic acid as a form of delivery for vitamin C, but results seem to overlap. Tests to follow.
+
+Some definitions:
+
+- $\mu_{OJ}$ - the mean length of odontoblasts given orange juice as the form of delivery for vitamin C.
+
+- $\mu_{VC}$ - the mean length of odontoblasts given ascorbic acid as the form of delivery for vitamin C.
+
+- $H_{0}: \mu_{OJ}\le\mu_{VC}$
+
+- $H_{1}: \mu_{OJ}>\mu_{VC}$
+
+
+```{r test_supp, echo=FALSE}
+t.test(c(tg_data$len[tg_data$supp=="OJ"]),c(tg_data$len[tg_data$supp=="VC"]),alternative = "greater", paired = FALSE)
+```
+
+From the actual t.test it can be concluded that indeed there is evidence to support, with at least 95% confidence that the effect of delivering vitamin C through orange juice is more significant to teeth growth than using ascoric acid as a supplement. Note that $p-value\approx0.05$, but it is still smaller.
+
+__Dose and supplement type seperate examination__
+
+To see the seperate affect of supplement type for each dosage and vise versa, a slightly more complex boxplot will be formed by plotting for dose levels, then seperating each plot by supplement type.
+
+```{r seprate_factors}
+p<-ggplot(data=tg_data,aes(x=factor(dose),y=len,fill=supp))
+p+geom_boxplot()
+```
+
+For doses of 0.5mg/day and 1.0mg/day results are as can be expected after answering Q 1 and 2 - as dose goes up, odontoblasts length goes up; per given dosage OJ grants higher values of odontoblasts length.
+For a vitamin C dose of 2.0mg/day it seems the effect of supplement type is eliminated.
+For ascorbic acid there is a higher variance in results, but the means look about the same.
+
+To verify this theory a hypothsis will be defined, then a t.test performed over appropriately filtered data.
+
+- $\mu_{2.0_{OJ}}$ - the mean length of odontoblasts given orange juice as the form of delivery for vitamin C.
+
+- $\mu_{2.0_{VC}}$ - the mean length of odontoblasts given ascorbic acid as the form of delivery for vitamin C.
+
+- $H_{0}: \mu_{2.0_{OJ}}=\mu_{2.0_{VC}}$
+
+- $H_{1}: \mu_{2.0_{OJ}}\ne\mu_{2.0_{VC}}$
+
+
+
+```{r test_both, echo=FALSE}
+tg_data_2.0<-subset(tg_data,dose==2.0)
+t.test(c(tg_data_2.0$len[tg_data_2.0$supp=="OJ"]),c(tg_data_2.0$len[tg_data_2.0$supp=="VC"]),alternative = "two.sided", paired = FALSE)
+```
+
+Zero (and the actual diff in means) is well within the 95% confidence interval, and also $p-value\approx1$. We fail to reject the null hypothesis, meaning for a dose of 2.0 mg/day, the type of supplement used to deliver vitamin C is insignificant.
+
+__Conclusions__
+
+To conclude an answer for each question presented:
+
+1. For the 3 dosages measured we found a positive corre;ation between a larger dosage of vitamin C and the length of odontoblasts, signifying elevated tooth growth.
+
+2. It was found that generally, using orange juice as the supplement to deliver vitamin C gives stronger results in terms of tooth growth when compared to ascorbic acid.
+
+3. It was found that for a dose of 2.0 there is no evidence that OJ is preferable to ascorbic acid in terms of the mean length of odontoblasts***. If results for higher dosages were available, it would be interesting to see if the effect of the the supplement revereses or remains equal (or, in fact, if a higher dosage has a reversed effect on tooth growth all together).
+
+___Assumptions___
+
+When answering these questions it was assumed that 10 tests of each type is a significant enough amount to make any conclusions.
+It was also assumed that, between the various dosage levels and types of supplements, the guinea pigs tested were similar enough in terms of the factors contributing to odontoblast length (size, wheight, possibly age) and, of course, that they had about the same length of adontoblasts at the begining of the experiment.
+
+Of course, link between odobtoblast length and tooth growth is taken for granted but there was an effort made to reffer to the prior rather than the latter thus disregarding any uncertainties in terms of this link.
+
+
+(**) - This is true strictly within the values tested. Maybe for some higher dosage there will be a decline but we haven't the data to support (or test) this.
+
+(***) - There is is still some upside to using OJ as the supplement since it goves less varying results, but the mean result is the same.

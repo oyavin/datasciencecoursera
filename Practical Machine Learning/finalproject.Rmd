@@ -1,0 +1,116 @@
+---
+title: "Exercise perfomance classification"
+author: "Omer Yavin"
+date: "November 18, 2018"
+output: html_document
+---
+
+```{r setup, include=F}
+knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_chunk$set(dev = 'pdf')
+# upload needed libraries
+library(ggplot2)
+library(caret)
+library(dplyr)
+library(tidyr)
+library(parallel)
+library(doParallel)
+
+set.seed(1024) # for reproducability
+```
+__Executive summary__: This is a closing project for the Practical Machine Learning course, which is part of the Data Science specialization. The goal is to train and use a ML model to classify between correct weight lifting and 4 common types of mistaken execution of this exercise.
+The final model was built using Random Forests with a cross validation accuracy of 0.9952.
+
+#### Data overview:
+Data for this project is taken from - http://groupware.les.inf.puc-rio.br/har (citation at bottom).
+The data shows extensive measurements taken for subjects performing weight lifting exercises in several manners:
+Exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+Some exploratory data analysis can be seen in Appendix A.
+
+In the given testing set, no statistical summary values are given for any of the test cases, meaning all avg, steddev, min\\max, skewness values etc. given in the training set are obsolete.
+Following blocks show the code used to clean and tidy the data to prepare for training\\testing.
+```{r load_n_tidy_data}
+training<-read.csv("pml-training.csv")
+testing<-read.csv("pml-testing.csv")
+
+training_complete<-training[, colSums(is.na(training)) < 1] #remove all NA-containing columns
+
+#collect indexs for factor-containing columns, and columns which hold "leaky" data (data can inadverdently point to the actual classification, such as window number)
+max_cols<-grep('^max',names(training_complete))
+min_cols<-grep('^min',names(training_complete))
+skew_cols<-grep('^skewness',names(training_complete))
+kurtosis_cols<-grep('^kurtosis',names(training_complete))
+amplitude_cols<-grep('^amplitude',names(training_complete))
+window_cols<-grep('window',names(training_complete))
+time_cols<-grep('time',names(training_complete))
+X_col<-grep('X',names(training_complete))
+remove_cols<-c(skew_cols,kurtosis_cols,amplitude_cols,max_cols,min_cols,window_cols,time_cols,X_col)
+
+#prepare data for training
+training_complete_num<-subset(training_complete,select = -remove_cols)
+x<-training_complete_num[,-54]
+y<-training_complete_num[,54]
+
+#same steps for test data
+testing_complete<-testing[, colSums(is.na(testing)) < 1] # this covers of all min\max, skew, etc.
+window_cols<-grep('window',names(testing_complete))
+time_cols<-grep('time',names(testing_complete))
+X_col<-grep('X',names(testing_complete))
+remove_cols<-c(window_cols,time_cols,X_col)
+testing_complete_num<-subset(testing_complete,select = -remove_cols)
+x_test<-testing_complete_num[,-54]
+```
+
+Two main solutions that come to mind for this exercise:
+1. Use random forest, which is inherently good at these kind of tasks.
+2. Build separate SVMs for each user_name, and a simple decision tree above that.
+
+RF was ultimately chosen due to its straightforwardness, and the results it delivered. An example for the SVM method on a single username is given in Appendix B.
+Following is the implementation of the RF model. After several runs it was saved to save time on kniting.
+```{r train_rf}
+cluster <- makeCluster(detectCores()-1)
+registerDoParallel(cluster)
+rffitControl <- trainControl(method = "cv",number = 10,allowParallel = TRUE)
+#mdl_rf <- train(x, y, method="rf", data=training_complete_num,trControl = rffitControl)
+#saveRDS(mdl_rf, "mdl_rf.rds")
+mdl_rf<-readRDS("mdl_rf.rds")
+confusionMatrix(mdl_rf)
+```
+
+Accuracy with cross-validation is 0.995 which sets a good chance for correctly classifying 20\\20 of the test cases correctly (thanks to lgreski - https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-requiredModelAccuracy.md).
+
+Next step is attempting to classify the test data using the model.
+```{r classify_test_data}
+results<-predict(mdl_rf,x_test)
+print(as.data.frame(results))
+```
+
+#### Appendix A: Exploratory data analysis
+
+```{r data_exploration, fig.width=10, fig.height=10, fig.align='center'}
+training_complete_num %>%
+  gather(-classe,-user_name, key = "var_name", value = "value") %>%
+  ggplot(aes(x = value, color=user_name, shape=user_name ,y = classe)) + geom_point() +
+  facet_wrap(~ var_name, scales = "free")
+```
+
+Above chart was used to check if any features are easily identified as most relevant or perhaps completely irrelevant or maybe even predict some thresholds for classifications. That was not the case, but it is possible to guess from here the more influential features - roll belt, pitch forearm and several others.
+It was surprising (to me) to learn in retrospect the minor importance of user_name as a feature, but that might be explained by features such as yaw_belt which provide a way of distinguishing users without the explicit user_name feature.
+
+#### Appendix B: Example for using SVM in this project
+
+```{r svm_example}
+svmfitControl <- trainControl(method = "repeatedcv",number = 10,repeats = 5)
+train_charles_<-training_complete_num[training_complete_num$user_name=="charles",]
+train_charles<-subset(train_charles_,select = -c(user_name))
+mdl_svm_charles <- train(classe ~., data = train_charles,
+                         method = "svmLinear", trControl=svmfitControl,
+                         preProcess = c("center", "scale"))
+mdl_svm_charles
+```
+
+Here the linear form of SVM was used, since it delivered good results. For other users (whose data points aren't as easily separable), it would have been necessary to run 'svmRadial' (RBF kernel) with a grid search for sigma and C.
+On top of this would be implemented a simple decision tree based only on user_name.
+
+__Citation to data source__:
+Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data of Body Postures and Movements.
