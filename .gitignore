@@ -3,3 +3,5 @@
 *.zip
 /Reproducible Research/Final Project/repdata%2Fdata%2FStormData.*
 /Reproducible Research/Final Project/FinalProject_cache/*
+*.pdf
+*.png
